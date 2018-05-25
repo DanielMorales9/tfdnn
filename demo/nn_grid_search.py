@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from tfdnn.classifiers import NeuralNetwork
 from sklearn.model_selection import GridSearchCV, KFold
-PATH = '~/PycharmProjects/notebooks/nn/'
-train = pd.read_csv(PATH+'data/iris/iris.data', header=None)
+
+train = pd.read_csv('../data/iris/iris.data', header=None)
 train.columns = ['sl', 'sw', 'pl', 'pw', 'label']
 train = train.loc[train['label'] != 'Iris-setosa']
 train.loc[train['label'] == 'Iris-versicolor', 'label'] = 0.
@@ -17,8 +17,6 @@ y = train.values[:, -1].reshape(-1, 1).astype(np.float32)
 cls = NeuralNetwork(optimizer=tf.train.GradientDescentOptimizer)
 
 search = GridSearchCV(cls, {'learning_rate': [0.1, 0.01, 0.001, 0.0001, 0.00001],
-                            'reg_hidden': [0.1, 0.01, 0.001, 0.0001, 0.00001],
-                            'reg_output': [0.1, 0.01, 0.001, 0.0001, 0.00001],
                             'keep_prob': [0.8],
                             'hidden_units': [10, 50, 100, 1000],
                             'epochs': [100, 1000]},

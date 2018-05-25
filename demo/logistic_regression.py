@@ -2,8 +2,8 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 from tfdnn.classifiers import LogisticRegression
-PATH = '~/PycharmProjects/notebooks/nn/'
-train = pd.read_csv(PATH+'data/iris/iris.data', header=None)
+
+train = pd.read_csv('../data/iris/iris.data', header=None)
 train.columns = ['sl', 'sw', 'pl', 'pw', 'label']
 train = train.loc[train['label'] != 'Iris-setosa']
 train.loc[train['label'] == 'Iris-versicolor', 'label'] = 0.

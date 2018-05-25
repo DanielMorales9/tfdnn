@@ -14,7 +14,7 @@ x = train.values[:, :-1].astype(np.float32)
 y = train.values[:, -1].reshape(-1, 1).astype(np.float32)
 
 cls = DeepNeuralNetwork(optimizer=tf.train.GradientDescentOptimizer,
-                        learning_rate=0.01, hidden_units=[10, ],
+                        learning_rate=0.01, hidden_units=[10, 10],
                         epochs=1000)
 
 cls.fit(x, y)

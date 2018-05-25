@@ -75,5 +75,6 @@ The following modules are implemented:
 ### TODO
 1. Support for sparse tensors.
 2. Support for Tensorflow Datasets
-3. Implement save and restore API.
+3. Implement save and restore API
 4. Support for GPU computation
+5. Softmax support for multi-label classification

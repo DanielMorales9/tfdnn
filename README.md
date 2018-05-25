@@ -5,6 +5,10 @@ The library provides Logistic Regression, Shallow Neural Networks and Deep Neura
 
 
 ### What are Neural Networks?
+Neural Networks are computing systems vaguely inspired by the biological neural networks that constitute animal brains.
+
+![nn](./images/nn.png "Neural Networks")
+
 ```TODO```
 
 ## Usage
@@ -58,13 +62,18 @@ python setup.py install
 ```
 
 ## Currently supported features
+It supports standard regularization with the *Frobenius norm* and also *Dropout* regularization.  
+It allows the users to customize the Neural Network with the preferred activation function.    
+Different weight initilizalization techniques are also implemented. 
 
 The following modules are implemented: 
 1. LogisticRegression
 2. NeuralNetwork
 3. DeepNeuralNetwork
 
+
 ### TODO
 1. Support for sparse tensors.
 2. Support for Tensorflow Datasets
 3. Implement save and restore API.
+4. Support for GPU computation

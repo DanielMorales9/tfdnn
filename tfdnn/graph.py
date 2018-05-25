@@ -81,16 +81,20 @@ class LogisticRegressionGraph(AbstractGraph):
                  l2_w=0.001,
                  learning_rate=0.01,
                  optimizer=tf.train.AdamOptimizer,
+                 opt_kwargs=None,
                  act_fun='sigmoid',
                  loss_function=cross_entropy,
                  init_std=0.01):
         super(LogisticRegressionGraph, self).__init__()
+        if opt_kwargs is None:
+            opt_kwargs = {}
         assert dtype == tf.float32 or dtype == tf.float64, \
             'Dtype must be tf.float32 or tf.float64'
         self.dtype = dtype
         self.l2_w = l2_w
         self.learning_rate = learning_rate
-        self.optimizer = optimizer(learning_rate=self.learning_rate)
+        self.opt_kwargs = opt_kwargs
+        self.optimizer = optimizer(learning_rate=self.learning_rate, **self.opt_kwargs)
         try:
             self.act_fun = ACT_FUN[act_fun]
             self.weight_init_numerator = NUM_WEIGHT[act_fun]
@@ -182,19 +186,23 @@ class ShallowNeuralNetworkGraph(AbstractGraph):
                  reg_output=0.001,
                  learning_rate=0.01,
                  optimizer=tf.train.AdamOptimizer,
+                 opt_kwargs=None,
                  act_fun='sigmoid',
                  loss_function=cross_entropy,
                  init_std=0.01,
                  hidden_units=10,
                  keep_prob=None):
         super(ShallowNeuralNetworkGraph, self).__init__()
+        if opt_kwargs is None:
+            opt_kwargs = {}
         assert dtype == tf.float32 or dtype == tf.float64, \
             'Dtype must be tf.float32 or tf.float64'
         self.dtype = dtype
         self.reg_hidden = reg_hidden
         self.reg_output = reg_output
         self.learning_rate = learning_rate
-        self.optimizer = optimizer(learning_rate=self.learning_rate)
+        self.opt_kwargs = opt_kwargs
+        self.optimizer = optimizer(learning_rate=self.learning_rate, **self.opt_kwargs)
         try:
             self.act_fun = ACT_FUN[act_fun]
             self.weight_init_numerator = NUM_WEIGHT[act_fun]
@@ -330,12 +338,15 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                  regularization=0.001,
                  learning_rate=0.01,
                  optimizer=tf.train.AdamOptimizer,
+                 opt_kwargs=None,
                  act_fun='sigmoid',
                  loss_function=cross_entropy,
                  init_std=0.01,
                  hidden_units=None,
                  keep_prob=None):
         super(DeepNeuralNetworkGraph, self).__init__()
+        if opt_kwargs is None:
+            opt_kwargs = {}
         assert dtype == tf.float32 or dtype == tf.float64, \
             'Dtype must be tf.float32 or tf.float64'
         if hidden_units is None:
@@ -350,7 +361,8 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.dtype = dtype
         self.regularization = regularization
         self.learning_rate = learning_rate
-        self.optimizer = optimizer(learning_rate=self.learning_rate)
+        self.opt_kwargs = opt_kwargs
+        self.optimizer = optimizer(learning_rate=self.learning_rate, **self.opt_kwargs)
         try:
             self.act_fun = ACT_FUN[act_fun]
             self.weight_init_numerator = NUM_WEIGHT[act_fun]

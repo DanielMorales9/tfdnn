@@ -46,6 +46,7 @@ class LogisticRegression(BaseClassifier):
                  dtype=tf.float32,
                  seed=1,
                  optimizer=tf.train.AdamOptimizer,
+                 opt_kwargs={},
                  learning_rate=0.01, l2_w=0.01,
                  loss_function=cross_entropy,
                  init_std=0.01,
@@ -57,6 +58,7 @@ class LogisticRegression(BaseClassifier):
                                                  seed=seed,
                                                  shuffle=shuffle)
         self.optimizer = optimizer
+        self.opt_kwargs = opt_kwargs
         self.learning_rate = learning_rate
         self.l2_w = l2_w
         self.init_std = init_std
@@ -64,6 +66,7 @@ class LogisticRegression(BaseClassifier):
         self.act_fun = act_fun
 
         self.core = LogisticRegressionGraph(optimizer=self.optimizer,
+                                            opt_kwargs=self.opt_kwargs,
                                             learning_rate=self.learning_rate,
                                             l2_w=self.l2_w, init_std=self.init_std,
                                             loss_function=self.loss_function,
@@ -123,6 +126,7 @@ class NeuralNetwork(BaseClassifier):
                  dtype=tf.float32,
                  seed=1,
                  optimizer=tf.train.AdamOptimizer,
+                 opt_kwargs=None,
                  learning_rate=0.01,
                  loss_function=cross_entropy,
                  init_std=0.01,
@@ -137,7 +141,10 @@ class NeuralNetwork(BaseClassifier):
                                             dtype=dtype,
                                             seed=seed,
                                             shuffle=shuffle)
+        if opt_kwargs is None:
+            opt_kwargs = {}
         self.optimizer = optimizer
+        self.opt_kwargs=opt_kwargs
         self.learning_rate = learning_rate
         self.reg_hidden = reg_hidden
         self.reg_output = reg_output
@@ -155,6 +162,7 @@ class NeuralNetwork(BaseClassifier):
                                               hidden_units=self.hidden_units,
                                               learning_rate=self.learning_rate,
                                               optimizer=self.optimizer,
+                                              opt_kwargs=self.opt_kwargs,
                                               keep_prob=self.keep_prob,
                                               act_fun=self.act_fun)
 
@@ -211,6 +219,7 @@ class DeepNeuralNetwork(BaseClassifier):
                  dtype=tf.float32,
                  seed=1,
                  optimizer=tf.train.AdamOptimizer,
+                 opt_kwargs=None,
                  learning_rate=0.01,
                  loss_function=cross_entropy,
                  init_std=0.01,
@@ -224,7 +233,10 @@ class DeepNeuralNetwork(BaseClassifier):
                                                 dtype=dtype,
                                                 seed=seed,
                                                 shuffle=shuffle)
+        if opt_kwargs is None:
+            opt_kwargs = {}
         self.optimizer = optimizer
+        self.opt_kwargs = opt_kwargs
         self.learning_rate = learning_rate
         self.init_std = init_std
         self.loss_function = loss_function
@@ -237,6 +249,7 @@ class DeepNeuralNetwork(BaseClassifier):
                                            regularization=self.regularization,
                                            learning_rate=self.learning_rate,
                                            optimizer=self.optimizer,
+                                           opt_kwargs=self.opt_kwargs,
                                            act_fun=self.act_fun,
                                            loss_function=self.loss_function,
                                            init_std=self.init_std,

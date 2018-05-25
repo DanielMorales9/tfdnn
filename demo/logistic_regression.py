@@ -13,7 +13,8 @@ train.loc[train['label'] == 'Iris-virginica', 'label'] = 1.
 x = train.values[:, :-1].astype(np.float32)
 y = train.values[:, -1].reshape(-1, 1).astype(np.float32)
 
-cls = LogisticRegression(optimizer=tf.train.GradientDescentOptimizer,
+cls = LogisticRegression(optimizer=tf.train.MomentumOptimizer,
+                         opt_kwargs={'momentum': 0.9},
                          learning_rate=0.1,
                          l2_w=0.1, epochs=1000)
 

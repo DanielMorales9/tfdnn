@@ -2,7 +2,18 @@ import tensorflow as tf
 from abc import ABC, abstractmethod
 from tfdnn.utility import cross_entropy, weight_init_coeff
 from functools import reduce
-import numpy as np
+
+ACT_FUN = {'sigmoid': tf.sigmoid,
+           'tanh': tf.tanh,
+           'relu': tf.nn.relu,
+           'leaky_relu': tf.nn.leaky_relu
+           }
+
+NUM_WEIGHT = { 'sigmoid': 1,
+               'tanh': 1,
+               'relu': 2,
+               'leaky_relu': 2
+               }
 
 
 class AbstractGraph(ABC):
@@ -70,10 +81,9 @@ class LogisticRegressionGraph(AbstractGraph):
                  l2_w=0.001,
                  learning_rate=0.01,
                  optimizer=tf.train.AdamOptimizer,
-                 act_fun=tf.sigmoid,
+                 act_fun='sigmoid',
                  loss_function=cross_entropy,
-                 init_std=0.01,
-                 num_weight=1):
+                 init_std=0.01):
         super(LogisticRegressionGraph, self).__init__()
         assert dtype == tf.float32 or dtype == tf.float64, \
             'Dtype must be tf.float32 or tf.float64'
@@ -81,10 +91,17 @@ class LogisticRegressionGraph(AbstractGraph):
         self.l2_w = l2_w
         self.learning_rate = learning_rate
         self.optimizer = optimizer(learning_rate=self.learning_rate)
-        self.act_fun = act_fun
+        try:
+            self.act_fun = ACT_FUN[act_fun]
+            self.weight_init_numerator = NUM_WEIGHT[act_fun]
+        except KeyError:
+            raise ValueError(act_fun + ' is not supported. '
+                                       'Please use one among '
+                                       'the following supported '
+                                       'activation functions: ' +
+                             ' '.join(ACT_FUN.keys()))
         self.init_std = init_std
         self.loss_function = loss_function
-        self.num_weight = num_weight
         self.init_all_vars = None
         self.n_features = None
         self.summary_op = None
@@ -111,7 +128,7 @@ class LogisticRegressionGraph(AbstractGraph):
         self.n_features = tf.shape(self.x)[1]
         self.lambda_w = tf.constant(self.l2_w, dtype=self.dtype, name='lambda_w')
         tf_shape = tf.stack([self.n_features, 1])
-        coeff = weight_init_coeff(self.num_weight, self.dtype, self.n_features)
+        coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, self.n_features)
         rnd_weights = tf.multiply(coeff,
                                   tf.random_normal(tf_shape, dtype=self.dtype))
         self.weights = tf.verify_tensor_all_finite(
@@ -165,12 +182,11 @@ class ShallowNeuralNetworkGraph(AbstractGraph):
                  reg_output=0.001,
                  learning_rate=0.01,
                  optimizer=tf.train.AdamOptimizer,
-                 act_fun=tf.sigmoid,
+                 act_fun='sigmoid',
                  loss_function=cross_entropy,
                  init_std=0.01,
                  hidden_units=10,
-                 keep_prob=None,
-                 coeff_num=1):
+                 keep_prob=None):
         super(ShallowNeuralNetworkGraph, self).__init__()
         assert dtype == tf.float32 or dtype == tf.float64, \
             'Dtype must be tf.float32 or tf.float64'
@@ -179,11 +195,19 @@ class ShallowNeuralNetworkGraph(AbstractGraph):
         self.reg_output = reg_output
         self.learning_rate = learning_rate
         self.optimizer = optimizer(learning_rate=self.learning_rate)
-        self.act_fun = act_fun
+        try:
+            self.act_fun = ACT_FUN[act_fun]
+            self.weight_init_numerator = NUM_WEIGHT[act_fun]
+        except KeyError:
+            raise ValueError(act_fun + ' is not supported. '
+                                       'Please use one among '
+                                       'the following supported '
+                                       'activation functions: ' +
+                             ' '.join(ACT_FUN.keys()))
+
         self.init_std = init_std
         self.loss_function = loss_function
         self.hidden_units = hidden_units
-        self.coeff_num = coeff_num
         self.has_drop_out = keep_prob is not None
         self.keep_prob = keep_prob
         self.norm = None
@@ -218,7 +242,7 @@ class ShallowNeuralNetworkGraph(AbstractGraph):
 
         hidden_layer_shape = tf.stack([self.n_features, self.hidden_units])
 
-        coeff = weight_init_coeff(self.coeff_num, self.dtype, self.n_features)
+        coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, self.n_features)
         rnd_output_layers = tf.multiply(coeff,
                                         tf.random_normal(hidden_layer_shape, dtype=self.dtype))
         self.hidden_layer = tf.verify_tensor_all_finite(
@@ -234,7 +258,7 @@ class ShallowNeuralNetworkGraph(AbstractGraph):
                         name='bias'),
             'NaN or Inf in bias')
         output_layer_shape = tf.stack([self.hidden_units, 1])
-        coeff = weight_init_coeff(self.coeff_num, self.dtype,
+        coeff = weight_init_coeff(self.weight_init_numerator, self.dtype,
                                   tf.convert_to_tensor(self.hidden_units))
         rnd_output_layers = tf.multiply(coeff,
                                         tf.random_normal(output_layer_shape, dtype=self.dtype))
@@ -306,12 +330,11 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                  regularization=0.001,
                  learning_rate=0.01,
                  optimizer=tf.train.AdamOptimizer,
-                 act_fun=tf.sigmoid,
+                 act_fun='sigmoid',
                  loss_function=cross_entropy,
                  init_std=0.01,
                  hidden_units=None,
-                 keep_prob=None,
-                 coeff_num=1):
+                 keep_prob=None):
         super(DeepNeuralNetworkGraph, self).__init__()
         assert dtype == tf.float32 or dtype == tf.float64, \
             'Dtype must be tf.float32 or tf.float64'
@@ -328,13 +351,20 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.regularization = regularization
         self.learning_rate = learning_rate
         self.optimizer = optimizer(learning_rate=self.learning_rate)
-        self.act_fun = act_fun
+        try:
+            self.act_fun = ACT_FUN[act_fun]
+            self.weight_init_numerator = NUM_WEIGHT[act_fun]
+        except KeyError:
+            raise ValueError(act_fun + ' is not supported. '
+                                       'Please use one among '
+                                       'the following supported '
+                                       'activation functions: ' +
+                             ' '.join(ACT_FUN.keys()))
         self.init_std = init_std
         self.loss_function = loss_function
         self.hidden_units = hidden_units
         self.has_drop_out = keep_prob is not None
         self.keep_prob = keep_prob
-        self.coeff_num = coeff_num
         self.loss = None
         self.reduced_loss = None
         self.norm = None
@@ -364,8 +394,8 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.n_layers = len(self.hidden_units) + 1
 
         hid_units = tf.concat([tf.expand_dims(self.n_features, 0),
-                             tf.convert_to_tensor(self.hidden_units),
-                             tf.expand_dims(1, 0)], axis=0)
+                               tf.convert_to_tensor(self.hidden_units),
+                               tf.expand_dims(1, 0)], axis=0)
 
         layers = []
         bias = []
@@ -378,7 +408,7 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                 'NaN or Inf in bias_'+str(i))
 
             shape = tf.stack([hid_units[i], hid_units[i + 1]])
-            coeff = weight_init_coeff(self.coeff_num, self.dtype, hid_units[i])
+            coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, hid_units[i])
 
             rnd_layers = tf.multiply(coeff, tf.random_normal(shape, dtype=self.dtype))
             ith_layer = tf.verify_tensor_all_finite(

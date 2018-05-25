@@ -63,7 +63,12 @@ python setup.py install
 
 ## Currently supported features
 It supports standard regularization with the *Frobenius norm* and also *Dropout* regularization.  
-It allows the users to customize the Neural Network with the preferred activation function.    
+It allows the users to customize the Neural Network with the preferred activation function: 
++ sigmoid
++ tanh
++ relu
++ leaky relu
+  
 Different weight initilizalization techniques are also implemented. 
 
 The following modules are implemented: 
@@ -78,3 +83,4 @@ The following modules are implemented:
 3. Implement save and restore API
 4. Support for GPU computation
 5. Softmax support for multi-label classification
+6. Add documentation and comments

@@ -50,7 +50,7 @@ class LogisticRegression(BaseClassifier):
                  loss_function=cross_entropy,
                  init_std=0.01,
                  shuffle=True,
-                 act_fun=tf.sigmoid):
+                 act_fun='sigmoid'):
         super(LogisticRegression, self).__init__(epochs=epochs,
                                                  batch_size=batch_size,
                                                  dtype=dtype,
@@ -131,7 +131,7 @@ class NeuralNetwork(BaseClassifier):
                  reg_output=0.01,
                  hidden_units=10,
                  keep_prob=None,
-                 act_fun=tf.sigmoid):
+                 act_fun='sigmoid'):
         super(NeuralNetwork, self).__init__(epochs=epochs,
                                             batch_size=batch_size,
                                             dtype=dtype,
@@ -218,7 +218,7 @@ class DeepNeuralNetwork(BaseClassifier):
                  shuffle=True,
                  hidden_units=None,
                  keep_prob=None,
-                 act_fun=tf.sigmoid):
+                 act_fun='sigmoid'):
         super(DeepNeuralNetwork, self).__init__(epochs=epochs,
                                                 batch_size=batch_size,
                                                 dtype=dtype,

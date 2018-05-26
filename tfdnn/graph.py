@@ -2,6 +2,7 @@ import tensorflow as tf
 from abc import ABC, abstractmethod
 from tfdnn.utility import cross_entropy, weight_init_coeff
 from functools import reduce
+import warnings
 
 ACT_FUN = {'sigmoid': tf.sigmoid,
            'tanh': tf.tanh,
@@ -342,6 +343,8 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                  act_fun='sigmoid',
                  loss_function=cross_entropy,
                  init_std=0.01,
+                 batch_norm=False,
+                 eps_batch_norm=10e-8,
                  hidden_units=None,
                  keep_prob=None):
         super(DeepNeuralNetworkGraph, self).__init__()
@@ -351,7 +354,7 @@ class DeepNeuralNetworkGraph(AbstractGraph):
             'Dtype must be tf.float32 or tf.float64'
         if hidden_units is None:
             hidden_units = [10, 10]
-        assert len(hidden_units) == 2, \
+        assert len(hidden_units) >= 2, \
             'Number of hidden layers must be at least two, ' \
             'otherwise use ShallowNeuralNetworkGraph'
         if keep_prob is list:
@@ -359,10 +362,12 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                 'hidden_units and keep_prob must be equal length'
 
         self.dtype = dtype
+        self.eps_batch_norm = eps_batch_norm
         self.regularization = regularization
         self.learning_rate = learning_rate
         self.opt_kwargs = opt_kwargs
         self.optimizer = optimizer(learning_rate=self.learning_rate, **self.opt_kwargs)
+
         try:
             self.act_fun = ACT_FUN[act_fun]
             self.weight_init_numerator = NUM_WEIGHT[act_fun]
@@ -377,6 +382,10 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.hidden_units = hidden_units
         self.has_drop_out = keep_prob is not None
         self.keep_prob = keep_prob
+        self.has_batch_norm = batch_norm
+        self.gamma = []
+        self.beta = []
+        self.layers = []
         self.loss = None
         self.reduced_loss = None
         self.norm = None
@@ -386,11 +395,13 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.n_features = None
         self.lambda_reg = None
         self.n_layers = None
-        self.layers = None
-        self.bias = None
+        self.n_hidden_layers = None
         self.y_hat = None
         self.x = None
         self.y = None
+
+        if self.has_batch_norm and self.has_drop_out and self.regularization != 0.0:
+            warnings.warn('You can use Batch-Norm and Drop-Out alternatively to L2-regularization')
 
     def init_placeholders(self):
         self.x = tf.placeholder(self.dtype, name='x')
@@ -403,22 +414,14 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                                       dtype=self.dtype,
                                       name='lambda_regularization')
 
-        self.n_layers = len(self.hidden_units) + 1
+        self.n_hidden_layers = len(self.hidden_units)
+        self.n_layers = self.n_hidden_layers + 1
 
         hid_units = tf.concat([tf.expand_dims(self.n_features, 0),
                                tf.convert_to_tensor(self.hidden_units),
                                tf.expand_dims(1, 0)], axis=0)
 
-        layers = []
-        bias = []
-
         for i in range(self.n_layers):
-            ith_bias = tf.verify_tensor_all_finite(
-                tf.Variable(self.init_std,
-                            trainable=True,
-                            name='bias_'+str(i)),
-                'NaN or Inf in bias_'+str(i))
-
             shape = tf.stack([hid_units[i], hid_units[i + 1]])
             coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, hid_units[i])
 
@@ -430,11 +433,25 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                             name='layers_'+str(i)),
                 'NaN or Inf in layer_'+str(i))
 
-            bias.append(ith_bias)
-            layers.append(ith_layer)
+            self.layers.append(ith_layer)
 
-        self.layers = layers
-        self.bias = bias
+            if self.has_batch_norm and i < self.n_hidden_layers:
+                coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, hid_units[i+1])
+                rnd_gamma = tf.multiply(coeff, tf.random_normal([self.hidden_units[i]], dtype=self.dtype))
+                ith_gamma = tf.verify_tensor_all_finite(
+                    tf.Variable(rnd_gamma,
+                                trainable=True,
+                                name='gamma_' + str(i)),
+                    'NaN or Inf in gamma_' + str(i))
+                rnd_beta = tf.multiply(coeff, tf.random_normal([self.hidden_units[i]], dtype=self.dtype))
+                ith_beta = tf.verify_tensor_all_finite(
+                    tf.Variable(rnd_beta,
+                                trainable=True,
+                                name='beta_' + str(i)),
+                    'NaN or Inf in beta_' + str(i))
+
+                self.beta.append(ith_beta)
+                self.gamma.append(ith_gamma)
 
     def init_main_graph(self):
         keep_prob = None
@@ -448,7 +465,16 @@ class DeepNeuralNetworkGraph(AbstractGraph):
 
         a = self.x
         for i in range(self.n_layers):
-            z = a @ self.layers[i] + self.bias[i]
+            z = a @ self.layers[i]
+
+            if self.has_batch_norm and i < self.n_layers-1:
+                z_mean, z_std = tf.nn.moments(z, axes=0)
+                z_tilde = tf.nn.batch_normalization(z, z_mean, z_std,
+                                                    self.beta[i],
+                                                    self.gamma[i],
+                                                    self.eps_batch_norm)
+                z = z_tilde
+
             a1 = self.act_fun(z)
 
             if self.has_drop_out:

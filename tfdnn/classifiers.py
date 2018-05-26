@@ -227,7 +227,9 @@ class DeepNeuralNetwork(BaseClassifier):
                  shuffle=True,
                  hidden_units=None,
                  keep_prob=None,
-                 act_fun='sigmoid'):
+                 act_fun='sigmoid',
+                 batch_norm=False,
+                 eps_batch_norm=10e-8):
         super(DeepNeuralNetwork, self).__init__(epochs=epochs,
                                                 batch_size=batch_size,
                                                 dtype=dtype,
@@ -244,6 +246,8 @@ class DeepNeuralNetwork(BaseClassifier):
         self.keep_prob = keep_prob
         self.act_fun = act_fun
         self.regularization = regularization
+        self.batch_norm = batch_norm
+        self.eps_batch_norm = eps_batch_norm
 
         self.core = DeepNeuralNetworkGraph(dtype=self.dtype,
                                            regularization=self.regularization,
@@ -254,7 +258,9 @@ class DeepNeuralNetwork(BaseClassifier):
                                            loss_function=self.loss_function,
                                            init_std=self.init_std,
                                            keep_prob=self.keep_prob,
-                                           hidden_units=self.hidden_units)
+                                           hidden_units=self.hidden_units,
+                                           batch_norm=self.batch_norm,
+                                           eps_batch_norm=self.eps_batch_norm)
 
     def fit(self, X, y):
         y = y.reshape(-1, 1) if len(y.shape) == 1 else y

@@ -76,6 +76,8 @@ The following modules are implemented:
 2. NeuralNetwork
 3. DeepNeuralNetwork
 
+In particular, DeepNeuralNetwork module implements also *Batch Norm*.
+
 
 ### TODO
 1. Support for sparse tensors.

@@ -357,7 +357,7 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         assert len(hidden_units) >= 2, \
             'Number of hidden layers must be at least two, ' \
             'otherwise use ShallowNeuralNetworkGraph'
-        if keep_prob is list:
+        if type(keep_prob) is list:
             assert len(hidden_units) == len(keep_prob), \
                 'hidden_units and keep_prob must be equal length'
 
@@ -401,7 +401,7 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.y = None
 
         if self.has_batch_norm and self.has_drop_out and self.regularization != 0.0:
-            warnings.warn('You can use Batch-Norm and Drop-Out alternatively to L2-regularization')
+            warnings.warn('You can use Batch-Norm and Dropout alternatively to L2-regularization')
 
     def init_placeholders(self):
         self.x = tf.placeholder(self.dtype, name='x')
@@ -469,21 +469,13 @@ class DeepNeuralNetworkGraph(AbstractGraph):
 
             if self.has_batch_norm and i < self.n_layers-1:
                 z_mean, z_std = tf.nn.moments(z, axes=0)
-                z_tilde = tf.nn.batch_normalization(z, z_mean, z_std,
-                                                    self.beta[i],
-                                                    self.gamma[i],
-                                                    self.eps_batch_norm)
+                z_tilde = tf.nn.batch_normalization(z, z_mean, z_std, self.beta[i], self.gamma[i], self.eps_batch_norm)
                 z = z_tilde
 
             a1 = self.act_fun(z)
 
             if self.has_drop_out:
-                rnd = tf.random_normal(tf.shape(a1), dtype=self.dtype)
-                if self.dtype == tf.float32:
-                    d = tf.to_float(rnd < keep_prob[i])
-                else:
-                    d = tf.to_double(rnd < keep_prob[i])
-                a1 = a1 * d
+                a1 = tf.nn.dropout(a1, keep_prob[i], tf.shape(a1))
             a = a1
 
         self.y_hat = a

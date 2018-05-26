@@ -14,9 +14,9 @@ train.loc[train['label'] == 'Iris-virginica', 'label'] = 1.
 x = train.values[:, :-1].astype(np.float32)
 y = train.values[:, -1].reshape(-1, 1).astype(np.float32)
 
-cls = DeepNeuralNetwork(optimizer=tf.train.GradientDescentOptimizer,
-                        learning_rate=1, hidden_units=[80, 10], batch_norm=True,
-                        epochs=1000, regularization=0.)
+cls = DeepNeuralNetwork(optimizer=tf.train.AdamOptimizer,
+                        learning_rate=0.1, hidden_units=[80, 10], batch_norm=True, keep_prob=[0.8, 0.5],
+                        epochs=1000, regularization=0.1)
 
 x = StandardScaler().fit_transform(x)
 cls.fit(x, y)

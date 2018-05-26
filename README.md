@@ -76,7 +76,7 @@ The following modules are implemented:
 2. NeuralNetwork
 3. DeepNeuralNetwork
 
-In particular, DeepNeuralNetwork module implements also *Batch Norm*.
+In particular, DeepNeuralNetwork module implements also *Batch Norm* to weaken the coupling between layers while training.
 
 
 ### TODO

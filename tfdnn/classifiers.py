@@ -208,13 +208,8 @@ class NeuralNetwork(BaseClassifier):
 
     def score(self, X, y=None, sample_weight=None):
         y_hat = self.predict(X)
-        if len(y.shape) == 2:
-            y_hat = np.argmax(y_hat, axis=1)
-            y = np.argmax(y, axis=1)
-        else:
-            y = y.reshape(-1)
-            y_hat = (y_hat.reshape(-1, 1) > 0.5).astype(np.float)
-
+        y = y.reshape(-1)
+        y_hat = (y_hat.reshape(-1, 1) > 0.5).astype(np.float)
         return accuracy_score(y_pred=y_hat, y_true=y)
 
 

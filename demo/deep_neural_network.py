@@ -15,7 +15,11 @@ x = train.values[:, :-1].astype(np.float32)
 y = train.values[:, -1].reshape(-1, 1).astype(np.float32)
 
 cls = DeepNeuralNetwork(optimizer=tf.train.AdamOptimizer,
-                        learning_rate=0.1, hidden_units=[80, 10], batch_norm=True,
+                        learning_rate=0.1,
+                        keep_prob=0.1,
+                        momentum_batch_norm=0.9,
+                        hidden_units=[80, 20],
+                        batch_norm=True,
                         epochs=1000, regularization=0.0)
 
 x = StandardScaler().fit_transform(x)

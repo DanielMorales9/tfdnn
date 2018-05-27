@@ -20,7 +20,6 @@ NUM_WEIGHT = { 'sigmoid': 1,
 class AbstractGraph(ABC):
 
     def __init__(self):
-        self.is_training = True
         self.global_step = None
         self.init_all_vars = None
         self.summary_op = None
@@ -47,8 +46,6 @@ class AbstractGraph(ABC):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    def train(self, train=True):
-        self.is_training = train
 
     @abstractmethod
     def init_placeholders(self):
@@ -364,7 +361,7 @@ class DeepNeuralNetworkGraph(AbstractGraph):
             'otherwise use ShallowNeuralNetworkGraph'
         if type(keep_prob) is list:
             assert len(hidden_units) == len(keep_prob), \
-                'hidden_units and keep_prob must be equal length'
+                'hidden_units and keep_prob must be of equal length'
 
         self.dtype = dtype
         self.eps_batch_norm = eps_batch_norm
@@ -382,17 +379,19 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                                        'the following supported '
                                        'activation functions: ' +
                              ' '.join(ACT_FUN.keys()))
+
+        self.hidden_units = hidden_units
+        self.keep_prob = keep_prob
+        self.n_hidden_layers = len(self.hidden_units)
+        self.n_layers = self.n_hidden_layers + 1
+        if self.keep_prob is not None and type(self.keep_prob) is not list:
+            self.keep_prob = [self.keep_prob] * self.n_hidden_layers
+
         self.init_std = init_std
         self.loss_function = loss_function
-        self.hidden_units = hidden_units
         self.has_drop_out = keep_prob is not None
-        self.keep_prob = keep_prob
         self.has_batch_norm = batch_norm
         self.momentum_batch_norm = momentum_batch_norm
-        self.gamma = []
-        self.beta = []
-        self.moving_mean_avg = []
-        self.moving_var_avg = []
         self.layers = []
         self.loss = None
         self.reduced_loss = None
@@ -402,9 +401,8 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         self.checked_target = None
         self.n_features = None
         self.lambda_reg = None
-        self.n_layers = None
-        self.n_hidden_layers = None
         self.y_hat = None
+        self.is_training = None
         self.x = None
         self.y = None
 
@@ -414,100 +412,48 @@ class DeepNeuralNetworkGraph(AbstractGraph):
     def init_placeholders(self):
         self.x = tf.placeholder(self.dtype, name='x')
         self.y = tf.placeholder(self.dtype, shape=[None, 1], name='y')
+        self.is_training = tf.placeholder(tf.bool, shape=[], name='train')
 
     def init_params(self):
-        self.n_features = tf.shape(self.x)[1]
-
         self.lambda_reg = tf.constant(self.regularization,
                                       dtype=self.dtype,
                                       name='lambda_regularization')
 
-        self.n_hidden_layers = len(self.hidden_units)
-        self.n_layers = self.n_hidden_layers + 1
-
-        hid_units = tf.concat([tf.expand_dims(self.n_features, 0),
-                               tf.convert_to_tensor(self.hidden_units),
-                               tf.expand_dims(1, 0)], axis=0)
+        hid_units = [self.n_features]
+        hid_units.extend(self.hidden_units)
+        hid_units.append(1)
 
         for i in range(self.n_layers):
-            shape = tf.stack([hid_units[i], hid_units[i + 1]])
             coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, hid_units[i])
+            shape = tf.TensorShape(hid_units[i:i+2])
 
-            rnd_layers = tf.multiply(coeff, tf.random_normal(shape, dtype=self.dtype))
+            rnd_layers = tf.multiply(coeff, tf.random_normal(shape,
+                                                             stddev=self.init_std,
+                                                             dtype=self.dtype))
             ith_layer = tf.verify_tensor_all_finite(
                 tf.Variable(rnd_layers,
                             trainable=True,
-                            validate_shape=False,
                             name='layers_'+str(i)),
                 'NaN or Inf in layer_'+str(i))
 
+            if i < self.n_hidden_layers:
+                if self.has_batch_norm:
+                    ith_layer = tf.layers.batch_normalization(ith_layer,
+                                                              momentum=self.momentum_batch_norm,
+                                                              epsilon=self.eps_batch_norm,
+                                                              training=self.is_training)
+                if self.has_drop_out:
+                    ith_layer = tf.layers.dropout(ith_layer, rate=self.keep_prob[i])
             self.layers.append(ith_layer)
 
-            if self.has_batch_norm and i < self.n_hidden_layers:
-                coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, hid_units[i+1])
-                rnd_gamma = tf.multiply(coeff, tf.random_normal([self.hidden_units[i]], dtype=self.dtype))
-                ith_gamma = tf.verify_tensor_all_finite(
-                    tf.Variable(rnd_gamma,
-                                trainable=True,
-                                name='gamma_' + str(i)),
-                    'NaN or Inf in gamma_' + str(i))
-                rnd_beta = tf.multiply(coeff, tf.random_normal([self.hidden_units[i]], dtype=self.dtype))
-                ith_beta = tf.verify_tensor_all_finite(
-                    tf.Variable(rnd_beta,
-                                trainable=True,
-                                name='beta_' + str(i)),
-                    'NaN or Inf in beta_' + str(i))
-                mean = tf.Variable(tf.convert_to_tensor(1, dtype=self.dtype),
-                                   trainable=False,
-                                   name='moving_mean_avg_'+str(i))
-                var = tf.Variable(tf.convert_to_tensor(1, dtype=self.dtype),
-                                  trainable=False,
-                                  name='moving_var_avg' + str(i))
-
-                self.beta.append(ith_beta)
-                self.gamma.append(ith_gamma)
-                self.moving_mean_avg.append(mean)
-                self.moving_var_avg.append(var)
-
     def init_main_graph(self):
-        keep_prob = None
-        if self.keep_prob is not None:
-            if type(self.keep_prob) is not list:
-                keep_prob = [self.keep_prob] * (self.n_layers - 1)
-            else:
-                keep_prob = self.keep_prob
-            keep_prob.append(1)
-            keep_prob = tf.convert_to_tensor(keep_prob)
-        beta = self.momentum_batch_norm
         a = self.x
         for i in range(self.n_layers):
             z = a @ self.layers[i]
 
-            if self.has_batch_norm and i < self.n_layers-1:
-
-                z = self.batch_normalization(beta, i, z)
-
-            a1 = self.act_fun(z)
-
-            if self.has_drop_out:
-                a1 = tf.nn.dropout(a1, keep_prob[i], tf.shape(a1))
-            a = a1
+            a = self.act_fun(z)
 
         self.y_hat = a
-
-    def batch_normalization(self, beta, i, z):
-        if self.is_training:
-            z_mean, z_var = tf.nn.moments(z, axes=0, keep_dims=True)
-            z_tilde = tf.nn.batch_normalization(z, z_mean, z_var, self.beta[i], self.gamma[i], self.eps_batch_norm)
-
-            self.moving_mean_avg[i] = beta * self.moving_mean_avg[i] + (1 - beta) * z_mean
-            self.moving_var_avg[i] = beta * self.moving_mean_avg[i] + (1 - beta) * z_var
-        else:
-            z_tilde = tf.nn.batch_normalization(z, self.moving_mean_avg[i],
-                                                self.moving_var_avg[i],
-                                                self.beta[i], self.gamma[i],
-                                                self.eps_batch_norm)
-        return z_tilde
 
     def init_loss(self):
         self.loss = self.loss_function(self.y, self.y_hat)
@@ -533,15 +479,7 @@ class DeepNeuralNetworkGraph(AbstractGraph):
         tf.summary.scalar('target', self.checked_target)
 
     def init_trainer(self):
-        if self.has_batch_norm:
-            dep = []
-            dep.extend(self.moving_mean_avg)
-            dep.extend(self.moving_var_avg)
-            with tf.control_dependencies(dep):
-                self.trainer = self.optimizer.minimize(self.checked_target,
-                                                       global_step=self.global_step)
-        else:
-            self.trainer = self.optimizer.minimize(self.checked_target,
-                                                   global_step=self.global_step)
+        self.trainer = self.optimizer.minimize(self.checked_target,
+                                               global_step=self.global_step)
 
 

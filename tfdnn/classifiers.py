@@ -266,8 +266,9 @@ class DeepNeuralNetwork(BaseClassifier):
                                            eps_batch_norm=self.eps_batch_norm)
 
     def fit(self, X, y):
-        self.core.train(True)
         y = y.reshape(-1, 1) if len(y.shape) == 1 else y
+
+        self.core.n_features = X.shape[1]
         with self.graph.as_default():
             self.core.define_graph()
 
@@ -275,8 +276,7 @@ class DeepNeuralNetwork(BaseClassifier):
         batch_size = n_samples if self.batch_size == -1 else self.batch_size
         if not self.session.run(tf.is_variable_initialized(
                 self.core.global_step)):
-            self.session.run(self.core.init_all_vars,
-                             feed_dict={self.core.x: X[:batch_size]})
+            self.session.run(self.core.init_all_vars)
 
         idx = np.arange(n_samples)
 
@@ -289,10 +289,10 @@ class DeepNeuralNetwork(BaseClassifier):
                 batch_y = y[batch_idx]
                 self.session.run(self.core.trainer,
                                  feed_dict={self.core.x: batch_x,
-                                            self.core.y: batch_y})
+                                            self.core.y: batch_y,
+                                            self.core.is_training: True})
 
     def predict(self, X):
-        self.core.train(False)
         n_samples = X.shape[0]
         batch_size = n_samples if self.batch_size == -1 else self.batch_size
 
@@ -303,7 +303,8 @@ class DeepNeuralNetwork(BaseClassifier):
             batch_idx = idx[ndx: min(ndx + batch_size, n_samples)]
             batch_x = X[batch_idx]
             batch_res = self.session.run(self.core.y_hat,
-                                         feed_dict={self.core.x: batch_x})
+                                         feed_dict={self.core.x: batch_x,
+                                                    self.core.is_training: False})
             res.append(batch_res)
         return np.concatenate(res)
 

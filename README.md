@@ -77,6 +77,7 @@ The following modules are implemented:
 3. DeepNeuralNetwork
 
 In particular, DeepNeuralNetwork module implements also *Batch Norm* to weaken the coupling between layers while training.
+It also implements multi-label classification by supporting softmax cross entropy loss.
 
 
 ### TODO

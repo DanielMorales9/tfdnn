@@ -16,6 +16,10 @@ NUM_WEIGHT = { 'sigmoid': 1,
                'leaky_relu': 2
                }
 
+LOSS_FUN = {'cross_entropy': cross_entropy,
+            'softmax_cross_entropy':
+                lambda x, y: tf.nn.softmax_cross_entropy_with_logits_v2(labels=x, logits=y)}
+
 
 class AbstractGraph(ABC):
 
@@ -45,7 +49,6 @@ class AbstractGraph(ABC):
     def set_params(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
-
 
     @abstractmethod
     def init_placeholders(self):
@@ -342,9 +345,8 @@ class DeepNeuralNetworkGraph(AbstractGraph):
                  optimizer=tf.train.AdamOptimizer,
                  opt_kwargs=None,
                  act_fun='sigmoid',
-                 loss_function=cross_entropy,
+                 loss_function='cross_entropy',
                  init_std=0.01,
-                 batch_norm=False,
                  momentum_batch_norm=0.9,
                  eps_batch_norm=10e-8,
                  hidden_units=None,
@@ -388,11 +390,17 @@ class DeepNeuralNetworkGraph(AbstractGraph):
             self.keep_prob = [self.keep_prob] * self.n_hidden_layers
 
         self.init_std = init_std
-        self.loss_function = loss_function
+        loss = LOSS_FUN[loss_function]
+        if loss_function == 'cross_entropy':
+            self.loss_function = lambda y, y_hat: loss(y, self.act_fun(y_hat))
+        else:
+            self.loss_function = loss
         self.has_drop_out = keep_prob is not None
-        self.has_batch_norm = batch_norm
         self.momentum_batch_norm = momentum_batch_norm
+        self.has_batch_norm = self.momentum_batch_norm is not None
         self.layers = []
+        self.bias = []
+        self.n_classes = None
         self.loss = None
         self.reduced_loss = None
         self.norm = None
@@ -410,65 +418,92 @@ class DeepNeuralNetworkGraph(AbstractGraph):
             warnings.warn('You can use Batch-Norm and Dropout alternatively to L2-regularization')
 
     def init_placeholders(self):
-        self.x = tf.placeholder(self.dtype, name='x')
-        self.y = tf.placeholder(self.dtype, shape=[None, 1], name='y')
+        self.x = tf.placeholder(self.dtype, shape=[None, self.n_features], name='x')
+        self.y = tf.placeholder(self.dtype, shape=[None, self.n_classes], name='y')
         self.is_training = tf.placeholder(tf.bool, shape=[], name='train')
 
     def init_params(self):
         self.lambda_reg = tf.constant(self.regularization,
                                       dtype=self.dtype,
                                       name='lambda_regularization')
-
         hid_units = [self.n_features]
         hid_units.extend(self.hidden_units)
-        hid_units.append(1)
+        hid_units.append(self.n_classes)
 
         for i in range(self.n_layers):
-            coeff = weight_init_coeff(self.weight_init_numerator, self.dtype, hid_units[i])
-            shape = tf.TensorShape(hid_units[i:i+2])
-
-            rnd_layers = tf.multiply(coeff, tf.random_normal(shape,
-                                                             stddev=self.init_std,
-                                                             dtype=self.dtype))
+            shape = hid_units[i:i+2]
+            rnd_layer = tf.random_normal(shape,
+                                         stddev=self.init_std,
+                                         dtype=self.dtype)
             ith_layer = tf.verify_tensor_all_finite(
-                tf.Variable(rnd_layers,
+                tf.Variable(rnd_layer,
                             trainable=True,
-                            name='layers_'+str(i)),
-                'NaN or Inf in layer_'+str(i))
+                            validate_shape=i < self.n_hidden_layers,
+                            name='layer_'+str(i)),
+                msg='NaN or Inf in layer_'+str(i))
 
-            if i < self.n_hidden_layers:
-                if self.has_batch_norm:
-                    ith_layer = tf.layers.batch_normalization(ith_layer,
-                                                              momentum=self.momentum_batch_norm,
-                                                              epsilon=self.eps_batch_norm,
-                                                              training=self.is_training)
-                if self.has_drop_out:
-                    ith_layer = tf.layers.dropout(ith_layer, rate=self.keep_prob[i])
+            if not self.has_batch_norm or i >= self.n_hidden_layers:
+                ith_bias = tf.verify_tensor_all_finite(
+                    tf.Variable(tf.convert_to_tensor(self.init_std),
+                                trainable=True,
+                                name='bias_'+str(i)),
+                    msg='NaN or Inf in bias_' + str(i))
+                self.bias.append(ith_bias)
             self.layers.append(ith_layer)
 
     def init_main_graph(self):
         a = self.x
-        for i in range(self.n_layers):
+        m = tf.shape(self.x)[0]
+
+        if self.dtype is tf.float32:
+            m = tf.to_float(m)
+        else:
+            m = tf.to_double(m)
+
+        lambda_reg = self.lambda_reg
+
+        def regularizer(x):
+            return (lambda_reg / (2 * m)) * tf.reduce_sum(tf.square(x))
+
+        for i in range(self.n_hidden_layers):
             z = a @ self.layers[i]
+            if not self.has_batch_norm:
+                z += self.bias[i]
 
-            a = self.act_fun(z)
+            a1 = self.act_fun(z)
+            if self.has_batch_norm:
+                a1 = tf.layers.batch_normalization(a1,
+                                                   momentum=self.momentum_batch_norm,
+                                                   epsilon=self.eps_batch_norm,
+                                                   training=self.is_training,
+                                                   beta_regularizer=regularizer,
+                                                   gamma_regularizer=regularizer)
+            if self.has_drop_out:
+                a1 = tf.layers.dropout(a1, rate=self.keep_prob[i],
+                                       training=self.is_training)
+            a = a1
 
-        self.y_hat = a
+        if self.has_batch_norm:
+            z = a @ self.layers[self.n_hidden_layers] + self.bias[0]
+        else:
+            z = a @ self.layers[self.n_hidden_layers] + self.bias[self.n_hidden_layers]
+
+        self.y_hat = z
 
     def init_loss(self):
         self.loss = self.loss_function(self.y, self.y_hat)
         self.reduced_loss = tf.reduce_mean(self.loss)
 
     def init_regularization(self):
-
         norm = [tf.reduce_sum(tf.pow(x, 2)) for x in self.layers]
         norm = reduce(lambda x1, x2: x1 + x2, norm)
-        two_m = 1 / (2 * tf.shape(self.x)[0])
+        two_m = 2 * tf.shape(self.x)[0]
         if self.dtype == tf.float32:
             two_m = tf.to_float(two_m)
         else:
             two_m = tf.to_double(two_m)
-        self.norm = tf.multiply(two_m, norm)
+
+        self.norm = tf.multiply(self.lambda_reg / two_m, norm)
 
     def init_target(self):
         self.target = self.norm + self.reduced_loss

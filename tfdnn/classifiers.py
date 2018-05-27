@@ -207,7 +207,14 @@ class NeuralNetwork(BaseClassifier):
         return np.concatenate(res)
 
     def score(self, X, y=None, sample_weight=None):
-        y_hat = (self.predict(X).reshape(-1, 1) > 0.5).astype(np.float)
+        y_hat = self.predict(X)
+        if len(y.shape) == 2:
+            y_hat = np.argmax(y_hat, axis=1)
+            y = np.argmax(y, axis=1)
+        else:
+            y = y.reshape(-1)
+            y_hat = (y_hat.reshape(-1, 1) > 0.5).astype(np.float)
+
         return accuracy_score(y_pred=y_hat, y_true=y)
 
 
@@ -221,15 +228,14 @@ class DeepNeuralNetwork(BaseClassifier):
                  optimizer=tf.train.AdamOptimizer,
                  opt_kwargs=None,
                  learning_rate=0.01,
-                 loss_function=cross_entropy,
+                 loss_function='cross_entropy',
                  init_std=0.01,
                  regularization=0.01,
                  shuffle=True,
                  hidden_units=None,
                  keep_prob=None,
                  act_fun='sigmoid',
-                 batch_norm=False,
-                 momentum_batch_norm=0.9,
+                 momentum_batch_norm=None,
                  eps_batch_norm=10e-8):
         super(DeepNeuralNetwork, self).__init__(epochs=epochs,
                                                 batch_size=batch_size,
@@ -247,7 +253,6 @@ class DeepNeuralNetwork(BaseClassifier):
         self.keep_prob = keep_prob
         self.act_fun = act_fun
         self.regularization = regularization
-        self.batch_norm = batch_norm
         self.eps_batch_norm = eps_batch_norm
         self.momentum_batch_norm = momentum_batch_norm
 
@@ -261,14 +266,14 @@ class DeepNeuralNetwork(BaseClassifier):
                                            init_std=self.init_std,
                                            keep_prob=self.keep_prob,
                                            hidden_units=self.hidden_units,
-                                           batch_norm=self.batch_norm,
-                                           momentum_batch_norm=momentum_batch_norm,
+                                           momentum_batch_norm=self.momentum_batch_norm,
                                            eps_batch_norm=self.eps_batch_norm)
 
     def fit(self, X, y):
         y = y.reshape(-1, 1) if len(y.shape) == 1 else y
 
-        self.core.n_features = X.shape[1]
+        self.core.set_params(**{'n_features': X.shape[1],
+                                'n_classes': y.shape[1]})
         with self.graph.as_default():
             self.core.define_graph()
 
@@ -309,5 +314,11 @@ class DeepNeuralNetwork(BaseClassifier):
         return np.concatenate(res)
 
     def score(self, X, y=None, sample_weight=None):
-        y_hat = (self.predict(X).reshape(-1, 1) > 0.5).astype(np.float)
+        y_hat = self.predict(X)
+        if len(y.shape) == 2:
+            y_hat = np.argmax(y_hat, axis=1)
+            y = np.argmax(y, axis=1)
+        else:
+            y = y.reshape(-1)
+            y_hat = (y_hat.reshape(-1, 1) > 0.5).astype(np.float)
         return accuracy_score(y_pred=y_hat, y_true=y)
